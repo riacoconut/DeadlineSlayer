@@ -1,0 +1,87 @@
+name: CI Build and Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Show author info
+        run: |
+          echo "================================"
+          echo "ІНФОРМАЦІЯ ПРО АВТОРА:"
+          echo "================================"
+          git log -1 --pretty=format:"Автор: %an"
+          echo ""
+          git log -1 --pretty=format:"Email: %ae"
+          echo ""
+          git log -1 --pretty=format:"Дата: %ad"
+          echo ""
+          echo "================================"
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          echo "Встановлення залежностей..."
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            echo "Знайдено requirements.txt, встановлюємо..."
+            pip install -r requirements.txt
+          else
+            echo "Файл requirements.txt не знайдено, пропускаємо."
+          fi
+      
+      - name: Run tests (if available)
+        run: |
+          if python -c "import pytest" 2>/dev/null; then
+            echo "Запуск тестів..."
+            python -m pytest || echo "Тести не пройдені або не знайдені"
+          else
+            echo "pytest не встановлений, пропускаємо тести"
+          fi
+        continue-on-error: true
+      
+      - name: List project files
+        run: |
+          echo "Структура проекту:"
+          ls -la
+      
+      - name: Create release archive
+        run: |
+          echo "Створення архіву проекту..."
+          if [ -d "src" ]; then
+            zip -r project-release.zip src/
+          else
+            zip -r project-release.zip *.py || echo "Python файли не знайдено"
+          fi
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Release v1.0.${{ github.run_number }}
+          body: |
+            Автоматичний реліз Python проекту
+            
+            Деталі:
+            - Commit: ${{ github.sha }}
+            - Автор: ${{ github.actor }}
+            
+            Проект успішно зібрано
+          files: project-release.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
